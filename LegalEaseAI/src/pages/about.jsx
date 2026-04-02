@@ -1,33 +1,21 @@
-import React from "react";
-
 const About = () => {
   return (
-    <div style={{ padding: "40px", maxWidth: "900px", margin: "auto" }}>
-      <h1>About LegalEase AI</h1>
+    <div className="page">
+      <h1>About LegalEYE</h1>
 
       <p>
-        LegalEase AI is designed to simplify complex legal documents into plain,
-        understandable language. Most students and professionals sign agreements
-        without fully understanding them — we aim to fix that.
+        LegalEase AI is an intelligent platform designed to simplify legal
+        processes using artificial intelligence.
       </p>
 
       <p>
-        Our platform analyzes legal text, highlights risky clauses, and provides
-        actionable suggestions so you know exactly what you’re agreeing to.
+        Our goal is to make legal knowledge accessible to everyone — from
+        individuals to businesses — without the complexity and high costs.
       </p>
 
-      <h2>What We Do</h2>
-      <ul>
-        <li>📄 Simplify legal documents</li>
-        <li>⚠️ Detect risky clauses</li>
-        <li>💡 Suggest negotiation points</li>
-        <li>🧠 AI-powered explanations</li>
-      </ul>
-
-      <h2>Our Mission</h2>
       <p>
-        To make legal understanding accessible to everyone, regardless of their
-        background.
+        Whether it's analyzing documents, answering queries, or providing
+        insights, LegalEase AI helps you make informed decisions faster.
       </p>
     </div>
   );
