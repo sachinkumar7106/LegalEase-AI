@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { useAuth } from "./contexts/AuthContext.jsx";
+import Login from "./pages/Login";
 
 const COLORS = {
   bg: "#0B0E14",
@@ -726,7 +728,7 @@ function LandingPage({ onNav }) {
           LegalEase AI transforms how you interact with legal documents, cases, and research. Powered by large language models built for the legal domain.
         </p>
         <div className="hero-ctas">
-          <button className="btn-hero-primary" onClick={() => onNav("dashboard")}>Get started</button>
+          <button className="btn-hero-primary" onClick={() => onNav("landing")}>Sign in to get started</button>
           <button className="btn-hero-secondary" onClick={() => onNav("chat")}>See it in action</button>
         </div>
         <div className="stats-row">
@@ -925,80 +927,209 @@ function ChatPage() {
 // ─── DOCUMENT UPLOAD ───
 function UploadPage() {
   const [dragging, setDragging] = useState(false);
-  const files = [
-    { name: "Orion_Ventures_NDA_2024.pdf", size: "284 KB", progress: 100, done: true },
-    { name: "Henderson_Deposition_Oct14.docx", size: "1.2 MB", progress: 100, done: true },
-    { name: "BlockB44_Lease_Draft_v3.pdf", size: "892 KB", progress: 68, done: false },
-  ];
+  const [files, setFiles] = useState([]);
+  const [selectedFileName, setSelectedFileName] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+
+    const fileItem = {
+      name: file.name,
+      size: (file.size / 1024).toFixed(1) + " KB",
+      progress: 0,
+      done: false,
+      error: null,
+      analysis: null,
+    };
+
+    setFiles((prev) => [fileItem, ...prev]);
+    setSelectedFileName(file.name);
+
+    const formData = new FormData();
+    formData.append("document", file);
+
+    let progressInterval = setInterval(() => {
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.name === file.name && f.progress < 90
+            ? { ...f, progress: f.progress + 10 }
+            : f
+        )
+      );
+    }, 500);
+
+    try {
+      const response = await fetch("http://localhost:5000/analyze-document", {
+        method: "POST",
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Upload failed");
+      }
+
+      const data = await response.json();
+
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.name === file.name
+            ? { ...f, progress: 100, done: true, analysis: data.analysis }
+            : f
+        )
+      );
+    } catch (err) {
+      clearInterval(progressInterval);
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.name === file.name ? { ...f, progress: 0, error: err.message } : f
+        )
+      );
+    }
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleBrowseClick = () => fileInputRef.current?.click();
+  const onFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFile(e.target.files[0]);
+    }
+  };
+
+  const activeFile = files.find(f => f.name === selectedFileName) || files.find(f => f.analysis) || null;
 
   return (
     <div className="content">
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
         <div>
+          <input 
+            type="file" 
+            accept=".pdf" 
+            ref={fileInputRef} 
+            style={{ display: "none" }} 
+            onChange={onFileChange} 
+          />
           <div
             className={`upload-zone ${dragging ? "active" : ""}`}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={() => setDragging(false)}
+            onDrop={onDrop}
           >
             <div className="upload-icon">⬆</div>
-            <div className="upload-title">Drop documents here</div>
-            <p className="upload-sub">Supports PDF, DOCX, TXT · Up to 50 MB per file</p>
-            <button className="btn btn-ghost" style={{ marginTop: 18 }}>Browse files</button>
+            <div className="upload-title">Drop PDF documents here</div>
+            <p className="upload-sub">Supports PDF · Up to 5 MB per file</p>
+            <button className="btn btn-ghost" style={{ marginTop: 18 }} onClick={handleBrowseClick}>Browse files</button>
           </div>
           <div className="file-list">
             {files.map(f => (
-              <div className="file-item" key={f.name}>
+              <div 
+                className="file-item" 
+                key={f.name} 
+                onClick={() => setSelectedFileName(f.name)}
+                style={{ cursor: "pointer", border: selectedFileName === f.name ? `1px solid ${COLORS.gold}` : undefined }}
+              >
                 <div className="file-icon">📄</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="file-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
                   <div className="file-size">{f.size}</div>
                   <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${f.progress}%` }} />
+                    <div className="progress-fill" style={{ width: `${f.progress}%`, background: f.error ? COLORS.danger : COLORS.gold }} />
                   </div>
                 </div>
-                <span style={{ fontSize: 11, color: f.done ? COLORS.success : COLORS.gold }}>
-                  {f.done ? "✓ Done" : `${f.progress}%`}
+                <span style={{ fontSize: 11, color: f.error ? COLORS.danger : f.done ? COLORS.success : COLORS.gold }}>
+                  {f.error ? "Failed" : f.done ? "✓ Done" : `${f.progress}%`}
                 </span>
               </div>
             ))}
           </div>
         </div>
         <div>
-          <div className="analysis-panel">
-            <div className="analysis-section">
-              <div className="analysis-heading">Document overview</div>
-              <p style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
-                <strong style={{ color: COLORS.text }}>Orion Ventures NDA 2024</strong> — Non-disclosure agreement between Orion Ventures LLC and your client. 12 pages, 18 clauses identified.
-              </p>
-            </div>
-            <div className="analysis-section">
-              <div className="analysis-heading">Clause tags</div>
-              <div>
-                {["Non-compete", "Indemnification", "Governing law", "Termination", "Confidentiality", "IP ownership", "Force majeure"].map(t => (
-                  <span className="clause-tag" key={t}>{t}</span>
-                ))}
+          {activeFile && activeFile.analysis ? (
+            <div className="analysis-panel">
+              <div className="analysis-section">
+                <div className="analysis-heading">Document overview</div>
+                <p style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
+                  <strong style={{ color: COLORS.text }}>{activeFile.name}</strong> — {activeFile.analysis.document_overview}
+                </p>
+              </div>
+              
+              {activeFile.analysis.clause_tags && activeFile.analysis.clause_tags.length > 0 && (
+                <div className="analysis-section">
+                  <div className="analysis-heading">Clause tags</div>
+                  <div>
+                    {activeFile.analysis.clause_tags.map((t, idx) => (
+                      <span className="clause-tag" key={idx}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeFile.analysis.important_clauses && activeFile.analysis.important_clauses.length > 0 && (
+                <div className="analysis-section">
+                  <div className="analysis-heading">Important clauses</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {activeFile.analysis.important_clauses.map((c, idx) => (
+                      <div key={idx} style={{ background: COLORS.surfaceAlt, padding: "12px", borderRadius: "8px", border: `1px solid ${COLORS.border}` }}>
+                        <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 500, marginBottom: 4 }}>"{c.text}"</div>
+                        <div style={{ fontSize: 12, color: COLORS.textMuted, lineHeight: 1.5 }}>{c.explanation}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeFile.analysis.risk_summary && activeFile.analysis.risk_summary.length > 0 && (
+                <div className="analysis-section">
+                  <div className="analysis-heading">Risk summary</div>
+                  {activeFile.analysis.risk_summary.map((r, i) => {
+                    const levelClass = r.level?.toLowerCase() === "high" ? "high" : r.level?.toLowerCase() === "low" ? "low" : "med";
+                    return (
+                      <div className="risk-item" key={i}>
+                        <div className={`risk-dot risk-${levelClass}`} />
+                        <div className="risk-text"><strong>{r.level?.toUpperCase()} risk</strong> — {r.text}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {activeFile.analysis.suggestions && activeFile.analysis.suggestions.length > 0 && (
+                <div className="analysis-section">
+                  <div className="analysis-heading">Suggestions</div>
+                  <ul style={{ paddingLeft: "18px", margin: 0, color: COLORS.textMuted, fontSize: 12, lineHeight: 1.6 }}>
+                     {activeFile.analysis.suggestions.map((s, idx) => (
+                       <li key={idx} style={{ marginBottom: "6px" }}>{s}</li>
+                     ))}
+                  </ul>
+                </div>
+              )}
+
+              <div style={{ padding: 16, display: "flex", gap: 10 }}>
+                <button className="btn btn-gold" style={{ flex: 1, justifyContent: "center" }}>Analyze in chat</button>
+                <button className="btn btn-ghost">Export report</button>
               </div>
             </div>
-            <div className="analysis-section">
-              <div className="analysis-heading">Risk summary</div>
-              {[
-                { level: "high", text: <><strong>§4.2 Non-compete</strong> — Undefined "adjacent markets" may be overbroad.</> },
-                { level: "med", text: <><strong>§7.1 Indemnification</strong> — Asymmetric carve-out favors counterparty.</> },
-                { level: "med", text: <><strong>§9 Governing law</strong> — Jurisdiction mismatch (Delaware vs. CA parties).</> },
-                { level: "low", text: <><strong>§11 Term</strong> — 3-year confidentiality window, standard for sector.</> },
-              ].map((r, i) => (
-                <div className="risk-item" key={i}>
-                  <div className={`risk-dot risk-${r.level}`} />
-                  <div className="risk-text">{r.text}</div>
-                </div>
-              ))}
+          ) : activeFile && !activeFile.error ? (
+             <div className="analysis-panel" style={{ padding: "60px 40px", textAlign: "center" }}>
+               <div style={{ color: COLORS.gold, marginBottom: "16px", fontSize: "28px" }}>⚙️</div>
+               <div style={{ fontSize: "15px", color: COLORS.text, fontWeight: 500 }}>Analyzing Document...</div>
+               <div style={{ fontSize: "13px", color: COLORS.textMuted, marginTop: "8px", lineHeight: 1.5 }}>Extracting text and identifying key clauses using Gemini AI. This may take a few seconds.</div>
+             </div>
+          ) : (
+            <div className="analysis-panel" style={{ padding: "60px 40px", textAlign: "center", opacity: 0.5 }}>
+               Select or upload a document to view analysis.
             </div>
-            <div style={{ padding: 16, display: "flex", gap: 10 }}>
-              <button className="btn btn-gold" style={{ flex: 1, justifyContent: "center" }}>Analyze in chat</button>
-              <button className="btn btn-ghost">Export report</button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -1087,8 +1218,10 @@ function CasesPage() {
 }
 
 // ─── ROOT APP ───
-export default function App() {
-  const [page, setPage] = useState("landing");
+// Auth-wrapped App
+function AuthenticatedApp() {
+  const [page, setPage] = useState("dashboard");
+  const { logout } = useAuth();
 
   const titles = {
     landing: "LegalEase AI",
@@ -1118,12 +1251,13 @@ export default function App() {
           <NavItem icon="cases" label="Cases" page="cases" current={page} onClick={setPage} />
         </div>
         <div className="sidebar-footer">
-          <div className="user-pill">
-            <div className="avatar">YO</div>
+          <div className="user-pill" onClick={logout} style={{ cursor: 'pointer' }}>
+            <div className="avatar">U</div>
             <div>
-              <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500 }}>Your Office</div>
-              <div style={{ fontSize: 10, color: COLORS.textDim }}>Pro plan</div>
+              <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500 }}>User Office</div>
+              <div style={{ fontSize: 10, color: COLORS.textDim }}>JWT Auth</div>
             </div>
+            <Icon d={ICONS.logout} size={14} color={COLORS.textMuted} />
           </div>
         </div>
       </div>
@@ -1151,4 +1285,112 @@ export default function App() {
       </div>
     </>
   );
+}
+
+// ─── PUBLIC LANDING ───
+function PublicLandingPage({ onNavigate }) {
+  return (
+    <div style={{ background: COLORS.bg, minHeight: "100vh", color: COLORS.text, fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{css}</style>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 48px", borderBottom: `1px solid ${COLORS.border}`}}>
+         <div className="logo-area" style={{ margin: 0, padding: 0, border: "none" }}>
+           <div className="logo-wordmark" style={{ fontSize: 24, letterSpacing: "-0.5px" }}>LegalEase AI</div>
+         </div>
+         <button className="btn btn-ghost" onClick={() => onNavigate("login")}>Sign in</button>
+      </div>
+
+      <div className="hero" style={{ paddingLeft: 48, paddingRight: 48, marginTop: 60, textAlign: "center", border: "none" }}>
+        <h1 className="hero-h1" style={{ fontSize: 56 }}>
+          AI Legal Document Analyzer
+        </h1>
+        <p className="hero-sub" style={{ margin: "20px auto", maxWidth: 650, fontSize: 18 }}>
+          Transform your contract review process. Upload PDFs, extract text seamlessly, and let AI instantly identify key clauses, critical risks, and actionable insights.
+        </p>
+        <div className="hero-ctas" style={{ justifyContent: "center", marginTop: 40 }}>
+          <button className="btn btn-gold" style={{ fontSize: 16, padding: "14px 28px" }} onClick={() => onNavigate("auth-intro")}>
+            Analyze Now
+          </button>
+          <button className="btn btn-ghost" style={{ fontSize: 16, padding: "14px 28px" }} onClick={() => onNavigate("auth-intro")}>
+            Get Started
+          </button>
+        </div>
+      </div>
+
+      <div style={{ padding: "80px 48px", background: COLORS.surface, marginTop: 80, borderTop: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}` }}>
+        <div style={{ textAlign: "center", marginBottom: 40, fontSize: 12, color: COLORS.gold, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>How it works</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 60, flexWrap: "wrap", margin: "0 auto", maxWidth: 1000 }}>
+           {[
+             { step: "1", title: "Upload PDF", desc: "Drag and drop any legal document directly into abstract secured storage." },
+             { step: "2", title: "AI Analysis", desc: "Our models parse every sentence, identifying standard patterns and anomalies." },
+             { step: "3", title: "Get Insights", desc: "Instantly view clause tags, a categorized risk summary, and strategic suggestions." }
+           ].map(s => (
+             <div key={s.step} style={{ textAlign: "center", flex: "1", minWidth: 250, maxWidth: 300 }}>
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(201,168,76,0.1)", border: `1px solid rgba(201,168,76,0.2)`, color: COLORS.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, margin: "0 auto 20px auto", fontWeight: 600 }}>{s.step}</div>
+                <h3 style={{ fontSize: 18, marginBottom: 12, color: COLORS.text, fontWeight: 500 }}>{s.title}</h3>
+                <p style={{ fontSize: 14, color: COLORS.textMuted, lineHeight: 1.6 }}>{s.desc}</p>
+             </div>
+           ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "80px 48px" }}>
+        <div style={{ textAlign: "center", marginBottom: 60, fontSize: 32, fontFamily: "'Playfair Display', serif" }}>Powerful Features</div>
+        <div className="feature-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", maxWidth: 1000, margin: "0 auto" }}>
+          {[
+            { icon: "📄", title: "Document Analysis", desc: "Extract raw text systematically from thick law PDFs without losing structural intent." },
+            { icon: "🏷️", title: "Clause Detection", desc: "Auto-tag standard clauses like governing law, indemnification, or termination natively." },
+            { icon: "🛑", title: "Risk Summary", desc: "Color-coded pill states immediately alerting you to high, medium, and low vulnerabilities." },
+            { icon: "💡", title: "Smart Suggestions", desc: "Get actionable negotiation feedback tailored to the specific risks detected." },
+          ].map(f => (
+             <div className="feature-card" key={f.title} style={{ textAlign: "left" }}>
+               <div className="feature-icon">{f.icon}</div>
+               <div className="feature-title">{f.title}</div>
+               <div className="feature-desc">{f.desc}</div>
+             </div>
+          ))}
+        </div>
+      </div>
+
+      <footer style={{ padding: "40px", textAlign: "center", borderTop: `1px solid ${COLORS.border}`, color: COLORS.textDim, fontSize: 13 }}>
+        © 2026 LegalEase AI. All rights reserved. Built for secure legal analysis.
+      </footer>
+    </div>
+  );
+}
+
+// ─── AUTH INTRO ───
+function AuthIntroPage({ onNavigate }) {
+  return (
+    <div style={{ background: COLORS.bg, minHeight: "100vh", color: COLORS.text, fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <style>{css}</style>
+      <div className="panel" style={{ maxWidth: 480, width: "100%", padding: "48px 40px", textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 24, background: "rgba(201,168,76,0.1)", width: 80, height: 80, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", margin: "0 auto 24px auto", color: COLORS.gold }}>🔒</div>
+        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, marginBottom: 16 }}>Protecting Your Data</h2>
+        <p style={{ fontSize: 15, color: COLORS.textMuted, lineHeight: 1.6, marginBottom: 36 }}>
+          Legal documents contain highly sensitive, confidential information. To ensure maximum security and privacy, we require you to authenticate before accessing the AI analysis tools. Your documents are securely processed and never used to train generalized models.
+        </p>
+        <button className="btn btn-gold" style={{ width: "100%", justifyContent: "center", fontSize: 15, padding: "12px 0" }} onClick={() => onNavigate("login")}>
+          Continue to Login
+        </button>
+        <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", margin: "14px auto 0 auto", color: COLORS.textMuted }} onClick={() => onNavigate("landing")}>
+          Back to Home
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── ROOT APP ───
+// App with JWT auth
+export default function App() {
+  const { isLoggedIn } = useAuth();
+  const [publicState, setPublicState] = useState("landing"); // 'landing' | 'auth-intro' | 'login'
+
+  if (!isLoggedIn) {
+    if (publicState === "landing") return <PublicLandingPage onNavigate={setPublicState} />;
+    if (publicState === "auth-intro") return <AuthIntroPage onNavigate={setPublicState} />;
+    return <Login />;
+  }
+
+  return <AuthenticatedApp />;
 }
