@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { spawn } from "child_process"; // ✅ FIXED (ESM import)
 
 import { analyzeLegalDoc } from "./aiService.js";
 import upload from "./middlewares/upload.js";
@@ -26,6 +27,7 @@ const startServer = async () => {
       res.send("API is running...");
     });
 
+    // 🔥 Gemini AI route (already working)
     app.post("/analyze", async (req, res) => {
       try {
         const { text } = req.body;
@@ -42,13 +44,44 @@ const startServer = async () => {
       }
     });
 
+    // 🔥 NEW: ML Clause Prediction Route
+    app.post("/predict-clause", (req, res) => {
+      const { text } = req.body;
+
+      if (!text) {
+        return res.status(400).json({ error: "Text is required" });
+      }
+
+      const pythonProcess = spawn("python", [
+        "../LegalEaseAI/predict.py",
+        text,
+      ]);
+
+      let result = "";
+
+      pythonProcess.stdout.on("data", (data) => {
+        result += data.toString();
+      });
+
+      pythonProcess.stderr.on("data", (data) => {
+        console.error("❌ Python Error:", data.toString());
+      });
+
+      pythonProcess.on("close", () => {
+        res.json({
+          clauseType: result.trim(),
+        });
+      });
+    });
+
+    // 🔥 Document Upload Route
     app.post(
       "/analyze-document",
       upload.single("document"),
       analyzeDocument
     );
 
-    // Global Error Handler
+    // 🔥 Global Error Handler
     app.use((err, req, res, next) => {
       console.error("❌ Error:", err.message);
       res.status(400).json({ error: err.message });
