@@ -5,7 +5,7 @@ import { AuthProvider } from './contexts/AuthContext.jsx'
 import './index.css'
 import App from './App.jsx'
 
-const GOOGLE_CLIENT_ID = "dummy-client-id.apps.googleusercontent.com"; // Replace with your actual clientId
+const GOOGLE_CLIENT_ID = "181691747020-8d2tcinab8m0n2on1i0ipfe5ae8f8kqq.apps.googleusercontent.com"; // Replace with your actual clientId
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
