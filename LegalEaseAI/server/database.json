@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "email": "test@example.com",
+      "password": "$2b$10$kZqQMwHNnc4mBuh2EwM67OCt3iBMHYZMGEwh6u07O0XTCuM/KgUR.",
+      "googleId": null,
+      "role": "user"
+    },
+    {
+      "id": 2,
+      "email": "username@gmail.com",
+      "password": "$2b$10$1lwxNlXnad2cZaGnRf0UxujoWoc7iIEsEUpmZUqUwrzIExIg.cz/m",
+      "googleId": null,
+      "role": "user"
+    }
+  ]
+}
