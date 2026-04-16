@@ -37,23 +37,33 @@ const clearAuth = () => {
 };
 
 const requestAuth = async (path, payload, options = {}) => {
-  const response = await fetch(`${API_BASE_URL}/auth/${path}`, {
-    method: options.method || 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/${path}`, {
+      method: options.method || 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
 
-  const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    throw new Error(data.error || 'Authentication failed');
+    if (!response.ok) {
+      // Prioritize the error message from the server, fallback to a descriptive status-based message
+      const errorMessage = data.error || `Authentication failed (Server returned ${response.status})`;
+      throw new Error(errorMessage);
+    }
+
+    return data;
+  } catch (error) {
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error('Unable to connect to the server. Please ensure the backend is running.');
+    }
+    throw error;
   }
-
-  return data;
 };
+
 
 const verifySession = async (token) => {
   const response = await fetch(`${API_BASE_URL}/auth/me`, {

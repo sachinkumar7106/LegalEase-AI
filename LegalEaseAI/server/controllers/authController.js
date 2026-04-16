@@ -40,8 +40,12 @@ export const signup = async (req, res) => {
       user: toPublicUser(user),
     });
   } catch (error) {
-    console.error("Signup error:", error.message);
-    return res.status(500).json({ error: "Unable to create account right now." });
+    console.error("Signup error details:", {
+      message: error.message,
+      stack: error.stack,
+      body: req.body
+    });
+    return res.status(500).json({ error: "Unable to create account. Please contact support or try again later." });
   }
 };
 
@@ -74,8 +78,12 @@ export const login = async (req, res) => {
       user: toPublicUser(user),
     });
   } catch (error) {
-    console.error("Login error:", error.message);
-    return res.status(500).json({ error: "Unable to log in right now." });
+    console.error("Login error details:", {
+      message: error.message,
+      stack: error.stack,
+      email: req.body?.email
+    });
+    return res.status(500).json({ error: "Unable to log in. Please check your connection and try again." });
   }
 };
 
