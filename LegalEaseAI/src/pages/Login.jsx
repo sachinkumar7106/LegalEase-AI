@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth.js';
 
 const Login = () => {
   const [email, setEmail] = useState('');

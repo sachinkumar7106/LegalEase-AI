@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { useAuth } from "./contexts/AuthContext.jsx";
+import { useState, useRef } from "react";
+import { useAuth } from "./contexts/useAuth.js";
 import Login from "./pages/Login";
 
 const COLORS = {
@@ -18,6 +18,8 @@ const COLORS = {
   danger: "#E05252",
   success: "#3DAA6F",
 };
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=DM+Sans:wght@300;400;500&display=swap');
@@ -960,7 +962,7 @@ function UploadPage() {
     }, 500);
 
     try {
-      const response = await fetch("http://localhost:5000/analyze-document", {
+      const response = await fetch(`${API_BASE_URL}/analyze-document`, {
         method: "POST",
         body: formData,
       });
