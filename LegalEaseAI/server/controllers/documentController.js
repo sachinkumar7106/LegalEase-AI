@@ -82,7 +82,7 @@ export const analyzeDocument = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Document Processing Error:", error);
+    console.error("❌ Document Processing Error:", error);hello
 
     return res.status(500).json({
       error: error.message || "An unexpected error occurred.",
