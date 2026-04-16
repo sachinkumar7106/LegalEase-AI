@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { useAuth } from "./contexts/AuthContext.jsx";
+import { useState, useRef } from "react";
+import { useAuth } from "./contexts/useAuth.js";
 import Login from "./pages/Login";
 
 const COLORS = {
@@ -18,6 +18,8 @@ const COLORS = {
   danger: "#E05252",
   success: "#3DAA6F",
 };
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=DM+Sans:wght@300;400;500&display=swap');
@@ -926,6 +928,7 @@ function ChatPage() {
 
 // ─── DOCUMENT UPLOAD ───
 function UploadPage() {
+  const { token } = useAuth();
   const [dragging, setDragging] = useState(false);
   const [files, setFiles] = useState([]);
   const [selectedFileName, setSelectedFileName] = useState(null);
@@ -934,19 +937,9 @@ function UploadPage() {
   const handleFile = async (file) => {
     if (!file) return;
 
-    if (file.type !== "application/pdf") {
-      alert("Invalid file type. Please upload a PDF.");
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      alert("File is too large. Please upload a file smaller than 10MB.");
-      return;
-    }
-
     const fileItem = {
       name: file.name,
-      size: file.size > 1024 * 1024 ? (file.size / (1024 * 1024)).toFixed(1) + " MB" : (file.size / 1024).toFixed(1) + " KB",
+      size: (file.size / 1024).toFixed(1) + " KB",
       progress: 0,
       done: false,
       error: null,
@@ -957,7 +950,7 @@ function UploadPage() {
     setSelectedFileName(file.name);
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("document", file);
 
     let progressInterval = setInterval(() => {
       setFiles((prev) =>
@@ -970,12 +963,9 @@ function UploadPage() {
     }, 500);
 
     try {
-      const token = localStorage.getItem('jwtToken');
-      const response = await fetch("http://localhost:5000/upload", {
+      const response = await fetch(`${API_BASE_URL}/analyze-document`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
       });
 
@@ -1041,7 +1031,7 @@ function UploadPage() {
           >
             <div className="upload-icon">⬆</div>
             <div className="upload-title">Drop PDF documents here</div>
-            <p className="upload-sub">Supports PDF · Up to 10 MB per file</p>
+            <p className="upload-sub">Supports PDF · Up to 5 MB per file</p>
             <button className="btn btn-ghost" style={{ marginTop: 18 }} onClick={handleBrowseClick}>Browse files</button>
           </div>
           <div className="file-list">
@@ -1071,30 +1061,60 @@ function UploadPage() {
           {activeFile && activeFile.analysis ? (
             <div className="analysis-panel">
               <div className="analysis-section">
-                <div className="analysis-heading">Document Summary</div>
+                <div className="analysis-heading">Document overview</div>
                 <p style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
-                  <strong style={{ color: COLORS.text }}>{activeFile.name}</strong> — {activeFile.analysis.summary}
+                  <strong style={{ color: COLORS.text }}>{activeFile.name}</strong> — {activeFile.analysis.document_overview}
                 </p>
               </div>
               
-              {activeFile.analysis.risks && activeFile.analysis.risks.length > 0 && (
+              {activeFile.analysis.clause_tags && activeFile.analysis.clause_tags.length > 0 && (
                 <div className="analysis-section">
-                  <div className="analysis-heading">Identified Risks & Suggestions</div>
+                  <div className="analysis-heading">Clause tags</div>
+                  <div>
+                    {activeFile.analysis.clause_tags.map((t, idx) => (
+                      <span className="clause-tag" key={idx}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeFile.analysis.important_clauses && activeFile.analysis.important_clauses.length > 0 && (
+                <div className="analysis-section">
+                  <div className="analysis-heading">Important clauses</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {activeFile.analysis.risks.map((r, idx) => (
+                    {activeFile.analysis.important_clauses.map((c, idx) => (
                       <div key={idx} style={{ background: COLORS.surfaceAlt, padding: "12px", borderRadius: "8px", border: `1px solid ${COLORS.border}` }}>
-                        <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 500, marginBottom: 8, fontStyle: "italic" }}>"{r.clause}"</div>
-                        <div className="risk-item" style={{ padding: 0, border: "none", alignItems: "flex-start", marginBottom: 6 }}>
-                          <div className="risk-dot risk-high" style={{ marginTop: 6 }} />
-                          <div className="risk-text"><strong>Risk:</strong> {r.risk}</div>
-                        </div>
-                        <div className="risk-item" style={{ padding: 0, border: "none", alignItems: "flex-start" }}>
-                          <div className="risk-dot risk-low" style={{ marginTop: 6, background: COLORS.success }} />
-                          <div className="risk-text"><strong>Suggestion:</strong> {r.suggestion}</div>
-                        </div>
+                        <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 500, marginBottom: 4 }}>"{c.text}"</div>
+                        <div style={{ fontSize: 12, color: COLORS.textMuted, lineHeight: 1.5 }}>{c.explanation}</div>
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {activeFile.analysis.risk_summary && activeFile.analysis.risk_summary.length > 0 && (
+                <div className="analysis-section">
+                  <div className="analysis-heading">Risk summary</div>
+                  {activeFile.analysis.risk_summary.map((r, i) => {
+                    const levelClass = r.level?.toLowerCase() === "high" ? "high" : r.level?.toLowerCase() === "low" ? "low" : "med";
+                    return (
+                      <div className="risk-item" key={i}>
+                        <div className={`risk-dot risk-${levelClass}`} />
+                        <div className="risk-text"><strong>{r.level?.toUpperCase()} risk</strong> — {r.text}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {activeFile.analysis.suggestions && activeFile.analysis.suggestions.length > 0 && (
+                <div className="analysis-section">
+                  <div className="analysis-heading">Suggestions</div>
+                  <ul style={{ paddingLeft: "18px", margin: 0, color: COLORS.textMuted, fontSize: 12, lineHeight: 1.6 }}>
+                     {activeFile.analysis.suggestions.map((s, idx) => (
+                       <li key={idx} style={{ marginBottom: "6px" }}>{s}</li>
+                     ))}
+                  </ul>
                 </div>
               )}
 
@@ -1205,7 +1225,7 @@ function CasesPage() {
 // Auth-wrapped App
 function AuthenticatedApp() {
   const [page, setPage] = useState("dashboard");
-  const { user, logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const titles = {
     landing: "LegalEase AI",
@@ -1236,10 +1256,10 @@ function AuthenticatedApp() {
         </div>
         <div className="sidebar-footer">
           <div className="user-pill" onClick={logout} style={{ cursor: 'pointer' }}>
-            <div className="avatar">{user?.email ? user.email[0].toUpperCase() : "U"}</div>
+            <div className="avatar">U</div>
             <div>
-              <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: 140 }}>{user?.email || "User"}</div>
-              <div style={{ fontSize: 10, color: COLORS.textDim }}>JWT Auth</div>
+              <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500 }}>{user?.name || 'User Office'}</div>
+              <div style={{ fontSize: 10, color: COLORS.textDim }}>{user?.email || 'Secure account'}</div>
             </div>
             <Icon d={ICONS.logout} size={14} color={COLORS.textMuted} />
           </div>
@@ -1367,8 +1387,24 @@ function AuthIntroPage({ onNavigate }) {
 // ─── ROOT APP ───
 // App with JWT auth
 export default function App() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, authReady } = useAuth();
   const [publicState, setPublicState] = useState("landing"); // 'landing' | 'auth-intro' | 'login'
+
+  if (!authReady) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: COLORS.bg,
+        color: COLORS.textMuted,
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        Verifying your session...
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     if (publicState === "landing") return <PublicLandingPage onNavigate={setPublicState} />;

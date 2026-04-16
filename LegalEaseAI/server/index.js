@@ -1,35 +1,63 @@
-import express from "express";
-import cors from "cors";
-import { analyzeLegalDoc } from "./aiService.js";
-import upload from "./middlewares/upload.js";
-import { analyzeDocument } from "./controllers/documentController.js";
-import { login, register, googleLogin } from "./controllers/authController.js";
-import { requireAuth } from "./middlewares/auth.js";
+import './config/loadEnv.js';
+
+import express from 'express';
+import cors from 'cors';
+
+import { analyzeLegalDoc } from './aiService.js';
+import upload from './middlewares/upload.js';
+import requireAuth from './middlewares/requireAuth.js';
+import { analyzeDocument } from './controllers/documentController.js';
+import authRoutes from './routes/authRoutes.js';
+import connectDB from './config/db.js';
+
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+const startServer = async () => {
+  try {
+    await connectDB();
+    console.log('Database connected');
 
-app.post("/api/login", login);
-app.post("/api/register", register);
-app.post("/api/google-login", googleLogin);
+    app.use(cors());
+    app.use(express.json());
 
-app.post("/analyze", requireAuth, async (req, res) => {
-  const { text } = req.body;
-  const result = await analyzeLegalDoc(text);
-  res.json(result);
-});
+    app.get('/', (req, res) => {
+      res.send('API is running...');
+    });
 
-app.post("/upload", requireAuth, upload.single("file"), analyzeDocument);
+    app.use('/auth', authRoutes);
 
-// Error handler for multer and other middleware errors
-app.use((err, req, res, next) => {
-  if (err) {
-    return res.status(400).json({ error: err.message });
+    app.post('/analyze', requireAuth, async (req, res) => {
+      try {
+        const { text } = req.body;
+
+        if (!text) {
+          return res.status(400).json({ error: 'Text is required' });
+        }
+
+        const result = await analyzeLegalDoc(text);
+        return res.json(result);
+      } catch (error) {
+        console.error('Analyze error:', error.message);
+        return res.status(503).json({ error: error.message || 'AI processing failed' });
+      }
+    });
+
+    app.post('/analyze-document', requireAuth, upload.single('document'), analyzeDocument);
+
+    app.use((err, req, res, _next) => {
+      console.error('Request error:', err.message);
+      return res.status(400).json({ error: err.message });
+    });
+
+    const PORT = process.env.PORT || 5000;
+
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error.message);
+    process.exit(1);
   }
-  next();
-});
+};
 
-app.listen(5000, () => {
-  console.log("Server running on http://localhost:5000");
-});
+startServer();

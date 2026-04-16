@@ -1,83 +1,103 @@
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import { OAuth2Client } from 'google-auth-library';
-import db from '../db.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import User from "../models/User.js";
+import { hashPassword, normalizeEmail, signAuthToken, verifyPassword } from "../utils/auth.js";
 
-const SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development_only';
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'dummy_client_id');
+const toPublicUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+});
 
-export const register = async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-
+export const signup = async (req, res) => {
   try {
-    const checkUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (checkUser) return res.status(400).json({ error: 'User already exists' });
+    const { name, email, password } = req.body;
 
-    const hash = await bcrypt.hash(password, 10);
-    const stmt = db.prepare('INSERT INTO users (email, password) VALUES (?, ?)');
-    const info = stmt.run(email, hash);
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email, and password are required." });
+    }
 
-    const token = jwt.sign({ id: info.lastInsertRowid, email, role: 'user' }, SECRET, { expiresIn: '1d' });
-    res.json({ token, user: { id: info.lastInsertRowid, email } });
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters long." });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const existingUser = await User.findOne({ email: normalizedEmail });
+
+    if (existingUser) {
+      return res.status(409).json({ error: "An account with this email already exists." });
+    }
+
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      passwordHash: hashPassword(password),
+    });
+
+    const token = signAuthToken(user);
+
+    return res.status(201).json({
+      message: "Signup successful.",
+      token,
+      user: toPublicUser(user),
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error while registering' });
+    console.error("Signup error details:", {
+      message: error.message,
+      stack: error.stack,
+      body: req.body
+    });
+    return res.status(500).json({ error: "Unable to create account. Please contact support or try again later." });
   }
 };
 
 export const login = async (req, res) => {
-  const { email, password } = req.body;
-  
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-
   try {
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    
-    if (!user.password && user.googleId) {
-      return res.status(401).json({ error: 'Please login with Google.' });
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
     }
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizedEmail });
 
-    const token = jwt.sign({ id: user.id, email, role: 'user' }, SECRET, { expiresIn: '1d' });
-    res.json({ token, user: { id: user.id, email } });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    const isValid = verifyPassword(password, user.passwordHash);
+
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    const token = signAuthToken(user);
+
+    return res.status(200).json({
+      message: "Login successful.",
+      token,
+      user: toPublicUser(user),
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error during login' });
+    console.error("Login error details:", {
+      message: error.message,
+      stack: error.stack,
+      email: req.body?.email
+    });
+    return res.status(500).json({ error: "Unable to log in. Please check your connection and try again." });
   }
 };
 
-export const googleLogin = async (req, res) => {
-  const { credential } = req.body; // Token from frontend GoogleLogin
-  if (!credential) return res.status(400).json({ error: 'Google credential is required' });
-
+export const me = async (req, res) => {
   try {
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential
-    });
-    
-    const payload = ticket.getPayload();
-    const { email, sub: googleId } = payload;
-
-    let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    
-    if (!user) {
-      const stmt = db.prepare('INSERT INTO users (email, googleId) VALUES (?, ?)');
-      const info = stmt.run(email, googleId);
-      user = { id: info.lastInsertRowid, email, googleId };
-    } else if (!user.googleId) {
-      db.prepare('UPDATE users SET googleId = ? WHERE id = ?').run(googleId, user.id);
+    if (!req.auth?.user) {
+      return res.status(401).json({ error: "Authentication required." });
     }
 
-    const jwtToken = jwt.sign({ id: user.id, email, role: 'user' }, SECRET, { expiresIn: '1d' });
-    res.json({ token: jwtToken, user: { id: user.id, email } });
+    return res.status(200).json({
+      user: toPublicUser(req.auth.user),
+    });
   } catch (error) {
-    console.error('Google verification error:', error);
-    res.status(401).json({ error: 'Invalid Google token' });
+    console.error("Session lookup error:", error.message);
+    return res.status(500).json({ error: "Unable to verify session right now." });
   }
 };
