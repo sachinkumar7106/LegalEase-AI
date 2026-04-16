@@ -4,7 +4,7 @@ import Document from "../models/Document.js";
 
 export const analyzeDocument = async (req, res) => {
   try {
-    // ✅ 1. Check file
+    // ✅ 1. Validate file
     if (!req.file) {
       return res.status(400).json({
         error: "No file uploaded or invalid file format. Please upload a PDF.",
@@ -36,22 +36,41 @@ export const analyzeDocument = async (req, res) => {
       });
     }
 
-    // ✅ 3. Send to AI
-    const aiAnalysis = await analyzeLegalDoc(extractedText);
+    // ✅ 3. AI Analysis (SAFE WITH FALLBACK)
+    let aiAnalysis;
 
-    // ✅ 4. Save to MongoDB (🔥 NEW PART)
+    try {
+      aiAnalysis = await analyzeLegalDoc(extractedText);
+    } catch (err) {
+      console.warn("⚠️ AI failed after retries:", err.message);
+
+      // 🔥 Fallback structure (matches your AI schema)
+      aiAnalysis = {
+        document_overview:
+          "⚠️ AI analysis unavailable due to high demand. Please try again later.",
+        clause_tags: [],
+        important_clauses: [],
+        risk_summary: [],
+        suggestions: [],
+      };
+    }
+
+    // ✅ 4. Save to MongoDB (ALWAYS)
     const savedDocument = await Document.create({
       title: req.file.originalname,
       originalText: extractedText,
 
-      summary: aiAnalysis.summary,
-      risks: aiAnalysis.risks,
-      clauses: aiAnalysis.clauses,
+      // 🔥 Match AI schema
+      document_overview: aiAnalysis.document_overview,
+      clause_tags: aiAnalysis.clause_tags,
+      important_clauses: aiAnalysis.important_clauses,
+      risk_summary: aiAnalysis.risk_summary,
+      suggestions: aiAnalysis.suggestions,
     });
 
-    // ✅ 5. Send response
+    // ✅ 5. Response
     return res.status(200).json({
-      message: "Document analyzed & saved successfully ✅",
+      message: "Document processed successfully ✅",
 
       document: {
         id: savedDocument._id,
