@@ -13,6 +13,13 @@
       "password": "$2b$10$1lwxNlXnad2cZaGnRf0UxujoWoc7iIEsEUpmZUqUwrzIExIg.cz/m",
       "googleId": null,
       "role": "user"
+    },
+    {
+      "id": 3,
+      "email": "saubhagya7singh@gmail.com",
+      "password": "$2b$10$e1xQN39nm6G4DgSmDzJv3u8bYwFAPLrj1w9JWuafRbmb.7DBB9Jvi",
+      "googleId": null,
+      "role": "user"
     }
   ]
 }
