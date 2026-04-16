@@ -1,53 +1,43 @@
-import pdfParse from "pdf-parse-new";
-import { analyzeLegalDoc } from "../aiService.js";
-import Document from "../models/Document.js";
+import pdfParse from 'pdf-parse-new';
+import { analyzeLegalDoc } from '../aiService.js';
+import Document from '../models/Document.js';
 
 export const analyzeDocument = async (req, res) => {
   try {
-    // ✅ 1. Validate file
     if (!req.file) {
       return res.status(400).json({
-        error: "No file uploaded or invalid file format. Please upload a PDF.",
+        error: 'No file uploaded or invalid file format. Please upload a PDF.',
       });
     }
 
-    let extractedText = "";
+    let extractedText = '';
 
-    // ✅ 2. Extract text from PDF
     try {
       const pdfData = await pdfParse(req.file.buffer);
-
-      extractedText = pdfData.text
-        .replace(/\n\s*\n/g, "\n\n")
-        .trim();
+      extractedText = pdfData.text.replace(/\n\s*\n/g, '\n\n').trim();
 
       if (!extractedText || extractedText.length < 5) {
         return res.status(400).json({
-          error:
-            "Could not extract sufficient text from this PDF. It may be scanned or empty.",
+          error: 'Could not extract sufficient text from this PDF. It may be scanned or empty.',
         });
       }
     } catch (parseError) {
-      console.error("❌ PDF Parsing Error:", parseError);
+      console.error('PDF parsing error:', parseError);
 
       return res.status(400).json({
-        error:
-          "Failed to read the PDF. Please ensure it is a valid text-based PDF.",
+        error: 'Failed to read the PDF. Please ensure it is a valid text-based PDF.',
       });
     }
 
-    // ✅ 3. AI Analysis (SAFE WITH FALLBACK)
     let aiAnalysis;
 
     try {
       aiAnalysis = await analyzeLegalDoc(extractedText);
     } catch (err) {
-      console.warn("⚠️ AI failed after retries:", err.message);
+      console.warn('AI failed after retries:', err.message);
 
-      // 🔥 Fallback structure (matches your AI schema)
       aiAnalysis = {
-        document_overview:
-          "⚠️ AI analysis unavailable due to high demand. Please try again later.",
+        document_overview: 'AI analysis is temporarily unavailable due to high demand. Please try again later.',
         clause_tags: [],
         important_clauses: [],
         risk_summary: [],
@@ -55,40 +45,45 @@ export const analyzeDocument = async (req, res) => {
       };
     }
 
-    // ✅ 4. Save to MongoDB (ALWAYS)
+    const clauseTags = Array.isArray(aiAnalysis.clause_tags) ? aiAnalysis.clause_tags : [];
+    const importantClauses = Array.isArray(aiAnalysis.important_clauses) ? aiAnalysis.important_clauses : [];
+    const riskSummary = Array.isArray(aiAnalysis.risk_summary) ? aiAnalysis.risk_summary : [];
+    const suggestions = Array.isArray(aiAnalysis.suggestions) ? aiAnalysis.suggestions : [];
+    const overview = aiAnalysis.document_overview || 'No summary available.';
+
     const savedDocument = await Document.create({
       title: req.file.originalname,
       originalText: extractedText,
-      summary: aiAnalysis.document_overview,
-      risks: aiAnalysis.risk_summary.map((risk) => `${risk.level}: ${risk.text}`),
-      clauses: aiAnalysis.clause_tags,
-
-      // 🔥 Match AI schema
-      document_overview: aiAnalysis.document_overview,
-      clause_tags: aiAnalysis.clause_tags,
-      important_clauses: aiAnalysis.important_clauses,
-      risk_summary: aiAnalysis.risk_summary,
-      suggestions: aiAnalysis.suggestions,
+      summary: overview,
+      risks: riskSummary.map((risk) => `${risk.level}: ${risk.text}`),
+      clauses: clauseTags,
+      document_overview: overview,
+      clause_tags: clauseTags,
+      important_clauses: importantClauses,
+      risk_summary: riskSummary,
+      suggestions,
     });
 
-    // ✅ 5. Response
     return res.status(200).json({
-      message: "Document processed successfully ✅",
-
+      message: 'Document processed successfully.',
       document: {
         id: savedDocument._id,
         title: savedDocument.title,
         createdAt: savedDocument.createdAt,
       },
-
-      analysis: aiAnalysis,
+      analysis: {
+        document_overview: overview,
+        clause_tags: clauseTags,
+        important_clauses: importantClauses,
+        risk_summary: riskSummary,
+        suggestions,
+      },
     });
-
   } catch (error) {
-    console.error("❌ Document Processing Error:", error);
+    console.error('Document processing error:', error);
 
     return res.status(500).json({
-      error: error.message || "An unexpected error occurred.",
+      error: error.message || 'An unexpected error occurred.',
     });
   }
 };

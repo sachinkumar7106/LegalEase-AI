@@ -1,75 +1,161 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthContext } from './authContext.js';
 
-const DEMO_EMAIL = 'demo@legalease.ai';
-const DEMO_PASSWORD = 'jwt123';
-const DEMO_TOKEN =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRlbW9AbGVnYWxlYXNlLmFpIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3Mjg5MDAwMDB9.dummyJwtTokenForDemo';
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const TOKEN_KEY = 'jwtToken';
+const USER_KEY = 'authUser';
 
-const getStoredToken = () => {
+const readStoredAuth = () => {
   if (typeof window === 'undefined') {
-    return '';
+    return { token: '', user: null };
   }
 
-  return window.localStorage.getItem('jwtToken') || '';
+  const token = window.localStorage.getItem(TOKEN_KEY) || '';
+  const rawUser = window.localStorage.getItem(USER_KEY);
+
+  let user = null;
+
+  if (rawUser) {
+    try {
+      user = JSON.parse(rawUser);
+    } catch {
+      user = null;
+    }
+  }
+
+  return { token, user };
+};
+
+const persistAuth = ({ token, user }) => {
+  window.localStorage.setItem(TOKEN_KEY, token);
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+};
+
+const clearAuth = () => {
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(USER_KEY);
+};
+
+const requestAuth = async (path, payload, options = {}) => {
+  const response = await fetch(`${API_BASE_URL}/auth/${path}`, {
+    method: options.method || 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Authentication failed');
+  }
+
+  return data;
+};
+
+const verifySession = async (token) => {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Session verification failed');
+  }
+
+  return data;
 };
 
 export const AuthProvider = ({ children }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(getStoredToken()));
+  const storedAuth = readStoredAuth();
+  const [isLoggedIn, setIsLoggedIn] = useState(Boolean(storedAuth.token));
+  const [user, setUser] = useState(storedAuth.user);
+  const [authReady, setAuthReady] = useState(!storedAuth.token);
+
+  const completeAuth = (data) => {
+    persistAuth({ token: data.token, user: data.user });
+    setUser(data.user);
+    setIsLoggedIn(true);
+    setAuthReady(true);
+    return { success: true, user: data.user };
+  };
 
   const login = async (email, password) => {
-    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      window.localStorage.setItem('jwtToken', DEMO_TOKEN);
-      setIsLoggedIn(true);
-      return { success: true };
-    }
-
-    if (!AUTH_API_URL) {
-      return {
-        success: false,
-        error: 'Use the demo credentials or configure VITE_AUTH_API_URL for real authentication.',
-      };
-    }
-
     try {
-      const response = await fetch(AUTH_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const data = await requestAuth('login', { email, password });
+      return completeAuth(data);
+    } catch (error) {
+      return { success: false, error: error.message || 'Login failed' };
+    }
+  };
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return {
-          success: false,
-          error: errorData.error || 'Login failed',
-        };
-      }
-
-      const data = await response.json();
-
-      if (!data.token) {
-        return { success: false, error: data.error || 'Login failed' };
-      }
-
-      window.localStorage.setItem('jwtToken', data.token);
-      setIsLoggedIn(true);
-      return { success: true };
-    } catch {
-      return { success: false, error: 'Network error' };
+  const signup = async (name, email, password) => {
+    try {
+      const data = await requestAuth('signup', { name, email, password });
+      return completeAuth(data);
+    } catch (error) {
+      return { success: false, error: error.message || 'Signup failed' };
     }
   };
 
   const logout = () => {
-    window.localStorage.removeItem('jwtToken');
+    clearAuth();
     setIsLoggedIn(false);
+    setUser(null);
+    setAuthReady(true);
   };
 
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!storedAuth.token) {
+      setAuthReady(true);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const validateSession = async () => {
+      try {
+        const data = await verifySession(storedAuth.token);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setUser(data.user);
+        setIsLoggedIn(true);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        clearAuth();
+        setUser(null);
+        setIsLoggedIn(false);
+      } finally {
+        if (isMounted) {
+          setAuthReady(true);
+        }
+      }
+    };
+
+    validateSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [storedAuth.token]);
+
   return (
-    <AuthContext.Provider value={{ isLoggedIn, login, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, user, login, signup, logout, authReady, token: storedAuth.token }}>
       {children}
     </AuthContext.Provider>
   );
 };
-

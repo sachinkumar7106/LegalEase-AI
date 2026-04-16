@@ -928,6 +928,7 @@ function ChatPage() {
 
 // ─── DOCUMENT UPLOAD ───
 function UploadPage() {
+  const { token } = useAuth();
   const [dragging, setDragging] = useState(false);
   const [files, setFiles] = useState([]);
   const [selectedFileName, setSelectedFileName] = useState(null);
@@ -964,6 +965,7 @@ function UploadPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/analyze-document`, {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
       });
 
@@ -1223,7 +1225,7 @@ function CasesPage() {
 // Auth-wrapped App
 function AuthenticatedApp() {
   const [page, setPage] = useState("dashboard");
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const titles = {
     landing: "LegalEase AI",
@@ -1256,8 +1258,8 @@ function AuthenticatedApp() {
           <div className="user-pill" onClick={logout} style={{ cursor: 'pointer' }}>
             <div className="avatar">U</div>
             <div>
-              <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500 }}>User Office</div>
-              <div style={{ fontSize: 10, color: COLORS.textDim }}>JWT Auth</div>
+              <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500 }}>{user?.name || 'User Office'}</div>
+              <div style={{ fontSize: 10, color: COLORS.textDim }}>{user?.email || 'Secure account'}</div>
             </div>
             <Icon d={ICONS.logout} size={14} color={COLORS.textMuted} />
           </div>
@@ -1385,8 +1387,24 @@ function AuthIntroPage({ onNavigate }) {
 // ─── ROOT APP ───
 // App with JWT auth
 export default function App() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, authReady } = useAuth();
   const [publicState, setPublicState] = useState("landing"); // 'landing' | 'auth-intro' | 'login'
+
+  if (!authReady) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: COLORS.bg,
+        color: COLORS.textMuted,
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        Verifying your session...
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     if (publicState === "landing") return <PublicLandingPage onNavigate={setPublicState} />;
