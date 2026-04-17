@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/useAuth.js';
+import { Button } from '../components/ui/Button';
 
 const Login = () => {
   const [mode, setMode] = useState('login');
@@ -28,198 +29,98 @@ const Login = () => {
     setLoading(false);
   };
 
-  const colors = {
-    gold: '#C9A84C',
-    goldLight: '#E4C47A',
-    text: '#E8E9EE',
-    textMuted: '#7B859E',
-    textDim: '#4A5268',
-    surface: '#111520',
-    border: '#1E2535',
-    borderMid: '#2A3349',
-    danger: '#E05252',
-    bg: '#0B0E14',
-  };
-
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '32px',
-      background: `radial-gradient(circle at top, rgba(201,168,76,0.08), transparent 42%), linear-gradient(180deg, #0B0E14 0%, #0E121A 100%)`,
-      color: colors.text,
-      fontFamily: "'DM Sans', sans-serif",
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '460px',
-        background: 'rgba(17,21,32,0.92)',
-        border: `1px solid ${colors.border}`,
-        borderRadius: '20px',
-        padding: '36px',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
-        backdropFilter: 'blur(12px)',
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: '38px',
-            fontWeight: 600,
-            background: `linear-gradient(135deg, ${colors.goldLight}, ${colors.gold})`,
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}>
+    <div className="min-h-screen flex text-foreground font-sans items-center justify-center p-6 bg-background bg-[radial-gradient(ellipse_at_top,rgba(201,168,76,0.08),transparent_50%)]">
+      <div className="w-full max-w-[460px] bg-card/90 border border-border rounded-[20px] p-9 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-md">
+        <div className="text-center mb-8">
+          <div className="font-serif text-[38px] font-semibold bg-gradient-to-br from-primary to-primary/80 bg-clip-text text-transparent inline-block">
             LegalEase
           </div>
-          <div style={{ fontSize: '14px', color: colors.textMuted, marginTop: '8px' }}>
+          <div className="text-sm text-muted-foreground mt-2 font-medium">
             {isSignup ? 'Create an account to save your work in MongoDB' : 'Sign in to continue to your workspace'}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', padding: '4px', background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: '12px' }}>
+        <div className="flex gap-2 mb-8 p-1.5 bg-background border border-border rounded-xl">
           <button
-            type='button'
+            type="button"
             onClick={() => setMode('login')}
-            style={{
-              flex: 1,
-              padding: '10px 12px',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              background: mode === 'login' ? colors.gold : 'transparent',
-              color: mode === 'login' ? '#1a1200' : colors.textMuted,
-              fontWeight: 600,
-            }}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${mode === 'login' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
           >
             Sign in
           </button>
           <button
-            type='button'
+            type="button"
             onClick={() => setMode('signup')}
-            style={{
-              flex: 1,
-              padding: '10px 12px',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              background: mode === 'signup' ? colors.gold : 'transparent',
-              color: mode === 'signup' ? '#1a1200' : colors.textMuted,
-              fontWeight: 600,
-            }}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${mode === 'signup' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
           >
             Sign up
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {error && (
-            <div style={{
-              background: 'rgba(224,82,82,0.12)',
-              border: `1px solid ${colors.danger}`,
-              color: colors.danger,
-              padding: '10px 14px',
-              borderRadius: '10px',
-              fontSize: '13px',
-            }}>
+            <div className="bg-destructive/10 border border-destructive/50 text-destructive px-4 py-3 rounded-xl text-sm font-medium">
               {error}
             </div>
           )}
 
           {isSignup && (
             <input
-              type='text'
-              placeholder='Full name'
+              type="text"
+              placeholder="Full name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
               disabled={loading}
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                background: colors.surface,
-                border: `1px solid ${colors.border}`,
-                borderRadius: '12px',
-                color: colors.text,
-                outline: 'none',
-                fontSize: '14px',
-              }}
+              className="w-full px-4 py-3.5 bg-background border border-border rounded-xl text-sm text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all font-medium placeholder:text-muted-foreground/60"
             />
           )}
 
           <input
-            type='email'
-            placeholder='Email address'
+            type="email"
+            placeholder="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '14px 16px',
-              background: colors.surface,
-              border: `1px solid ${colors.border}`,
-              borderRadius: '12px',
-              color: colors.text,
-              outline: 'none',
-              fontSize: '14px',
-            }}
+            className="w-full px-4 py-3.5 bg-background border border-border rounded-xl text-sm text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all font-medium placeholder:text-muted-foreground/60"
           />
 
           <input
-            type='password'
-            placeholder='Password'
+            type="password"
+            placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '14px 16px',
-              background: colors.surface,
-              border: `1px solid ${colors.border}`,
-              borderRadius: '12px',
-              color: colors.text,
-              outline: 'none',
-              fontSize: '14px',
-            }}
+            className="w-full px-4 py-3.5 bg-background border border-border rounded-xl text-sm text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all font-medium placeholder:text-muted-foreground/60"
           />
 
-          <button
-            type='submit'
+          <Button
+            type="submit"
             disabled={loading}
-            style={{
-              marginTop: '6px',
-              padding: '14px',
-              background: colors.gold,
-              color: '#1a1200',
-              border: 'none',
-              borderRadius: '12px',
-              fontSize: '14px',
-              fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-            }}
+            size="lg"
+            className="mt-2 w-full text-[15px] font-semibold h-12 rounded-xl"
           >
             {loading ? (isSignup ? 'Creating account...' : 'Signing in...') : (isSignup ? 'Create account' : 'Log in')}
-          </button>
+          </Button>
         </form>
 
-        <div style={{ marginTop: '18px', textAlign: 'center', fontSize: '13px', color: colors.textMuted }}>
+        <div className="mt-6 text-center text-sm">
           {isSignup ? (
             <button
-              type='button'
+              type="button"
               onClick={() => setMode('login')}
-              style={{ background: 'none', border: 'none', color: colors.goldLight, cursor: 'pointer', padding: 0 }}
+              className="text-primary/90 hover:text-primary font-medium transition-colors"
             >
               Already have an account? Sign in
             </button>
           ) : (
             <button
-              type='button'
+              type="button"
               onClick={() => setMode('signup')}
-              style={{ background: 'none', border: 'none', color: colors.goldLight, cursor: 'pointer', padding: 0 }}
+              className="text-primary/90 hover:text-primary font-medium transition-colors"
             >
               New here? Create an account
             </button>
