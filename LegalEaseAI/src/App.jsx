@@ -16,6 +16,7 @@ const AuthIntroPage = lazy(() => import("./pages/AuthIntroPage"));
 
 // Global Components
 import { Button } from "./components/ui/Button";
+import { LanguageSelector } from "./components/ui/LanguageSelector";
 import { 
   LayoutDashboard, 
   MessageSquare, 
@@ -158,6 +159,7 @@ function AuthenticatedApp() {
           <header className="h-16 shrink-0 border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-10 px-8 flex items-center justify-between shadow-sm">
             <h2 className="font-serif text-lg font-medium text-foreground">{titles[page]}</h2>
             <div className="flex items-center gap-3">
+              <LanguageSelector />
               <Button variant="outline" size="sm" className="gap-2 shrink-0 border-border shadow-sm">
                 <Bell size={14} /> Alerts
               </Button>

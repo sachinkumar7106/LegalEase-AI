@@ -1,7 +1,87 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "../components/ui/Button";
 import { Icon, ICONS } from "../components/Icons";
 import { Loader2 } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
+import { translateText } from "../utils/translate";
+import { LanguageSelector } from "../components/ui/LanguageSelector";
+
+const ChatMessage = ({ m }) => {
+  const { targetLang } = useLanguage();
+  const [translatedText, setTranslatedText] = useState(m.text);
+  const [translatedCite, setTranslatedCite] = useState(m.cite);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const translate = async () => {
+      if (m.role === "user" || targetLang === "en") {
+        if (isMounted) {
+          setTranslatedText(m.text);
+          setTranslatedCite(m.cite);
+          setIsTranslating(false);
+        }
+        return;
+      }
+
+      setIsTranslating(true);
+      try {
+        const textPromise = translateText(m.text, targetLang);
+        const citePromise = m.cite ? translateText(m.cite, targetLang) : Promise.resolve(null);
+        
+        const [resText, resCite] = await Promise.all([textPromise, citePromise]);
+        
+        if (isMounted) {
+          setTranslatedText(resText);
+          setTranslatedCite(resCite);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (isMounted) setIsTranslating(false);
+      }
+    };
+
+    translate();
+
+    return () => { isMounted = false; };
+  }, [m.text, m.cite, targetLang, m.role]);
+
+  const displayText = targetLang === "en" || showOriginal ? m.text : translatedText;
+  const displayCite = targetLang === "en" || showOriginal ? m.cite : translatedCite;
+
+  return (
+    <div className={`flex gap-4 max-w-4xl w-full ${m.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-medium text-sm border ${m.role === "ai" ? "bg-primary/10 border-primary/20 text-primary" : "bg-card border-border text-muted-foreground"}`}>
+        {m.role === "ai" ? "L" : "ME"}
+      </div>
+      <div className={`px-5 py-4 rounded-2xl text-sm leading-relaxed max-w-[85%] ${m.role === "user" ? "bg-primary/10 border border-primary/20 text-foreground rounded-tr-sm" : "bg-card border border-border text-card-foreground rounded-tl-sm relative"}`}>
+        {m.role === "ai" && targetLang !== "en" && (
+          <div className="absolute -top-3 right-2 flex items-center gap-2">
+             <button 
+               onClick={() => setShowOriginal(!showOriginal)}
+               className="text-[10px] bg-card border border-border rounded-full px-2 py-0.5 text-muted-foreground hover:text-primary transition-colors"
+             >
+               {showOriginal ? "Show Translated" : "Show Original"}
+             </button>
+             {isTranslating && <Loader2 size={12} className="animate-spin text-primary" />}
+             {!isTranslating && !showOriginal && <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">Translated to {targetLang.toUpperCase()}</span>}
+          </div>
+        )}
+        <div className={isTranslating ? "opacity-50" : ""}>
+          {displayText}
+          {displayCite && (
+            <div className="mt-4 p-4 rounded-lg bg-background/50 border border-border/50 border-l-2 border-l-primary text-xs text-muted-foreground">
+              {displayCite}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
@@ -67,21 +147,12 @@ export default function ChatPage() {
         </div>
       </div>
       <div className="flex flex-col h-full bg-background relative">
+        <div className="absolute top-4 right-6 z-10">
+          <LanguageSelector />
+        </div>
         <div className="flex-1 overflow-y-auto p-6 lg:p-10 flex flex-col gap-8 pb-32">
           {messages.map((m, i) => (
-            <div className={`flex gap-4 max-w-4xl w-full ${m.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`} key={i}>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-medium text-sm border ${m.role === "ai" ? "bg-primary/10 border-primary/20 text-primary" : "bg-card border-border text-muted-foreground"}`}>
-                {m.role === "ai" ? "L" : "ME"}
-              </div>
-              <div className={`px-5 py-4 rounded-2xl text-sm leading-relaxed max-w-[85%] ${m.role === "user" ? "bg-primary/10 border border-primary/20 text-foreground rounded-tr-sm" : "bg-card border border-border text-card-foreground rounded-tl-sm"}`}>
-                {m.text}
-                {m.cite && (
-                  <div className="mt-4 p-4 rounded-lg bg-background/50 border border-border/50 border-l-2 border-l-primary text-xs text-muted-foreground">
-                    {m.cite}
-                  </div>
-                )}
-              </div>
-            </div>
+            <ChatMessage key={i} m={m} />
           ))}
         </div>
         
@@ -129,3 +200,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
